@@ -1,0 +1,41 @@
+QDRANT INSTALLATION & RUN GUIDELINE (DOCKER)
+=============================================
+
+PREREQUISITE
+   - Docker must be installed and running (see docker_installation_run_guideline.txt).
+
+1. PULL THE QDRANT IMAGE
+   - Open PowerShell or Command Prompt and run:
+       docker pull qdrant/qdrant
+
+2. CREATE A STORAGE DIRECTORY (OPTIONAL BUT RECOMMENDED)
+   - Create a local folder to persist Qdrant data:
+       mkdir C:\qdrant_storage
+
+3. RUN THE QDRANT CONTAINER
+   - Run Qdrant as a background container with persistent storage:
+       docker run -d -p 6333:6333 -p 6334:6334 --name qdrant -v C:\qdrant_storage:/qdrant/storage qdrant/qdrant
+   - Ports:
+       * 6333 = HTTP REST API
+       * 6334 = gRPC API
+
+4. VERIFY THE CONTAINER IS RUNNING
+   - Check the container status:
+       docker ps
+   - You should see the "qdrant" container with status "Up".
+
+5. OPEN THE QDRANT DASHBOARD
+   - Open your browser and go to:
+       http://localhost:6333/dashboard
+   - You should see the Qdrant Web UI.
+
+6. TEST THE API (OPTIONAL)
+   - In PowerShell, run:
+       Invoke-RestMethod -Uri "http://localhost:6333"
+   - You should get a JSON response confirming Qdrant is up.
+
+USEFUL COMMANDS
+   - Stop Qdrant:          docker stop qdrant
+   - Start Qdrant:         docker start qdrant
+   - View logs:            docker logs qdrant
+   - Remove Qdrant:        docker rm -f qdrant
