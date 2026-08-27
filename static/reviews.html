@@ -4,17 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ABC123 Restaurant — Vector DB Review</title>
+<!-- Bootstrap from a CDN: gives us ready-made styling (navbar, tables, forms…).
+     The browser needs internet to download it. -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
     /* Minimal custom CSS — everything else uses Bootstrap utilities/components. */
-    .stars { color: #f5a623; letter-spacing: 1px; }
-    .stars .empty { color: #d9d9d9; }
+    .stars { color: #f5a623; letter-spacing: 1px; }  /* amber colour + spacing for filled stars */
+    .stars .empty { color: #d9d9d9; }                /* grey for the UNFILLED stars */
     .text-cell { max-width: 380px; white-space: pre-wrap; word-wrap: break-word; }
+    /* .text-cell keeps long review text readable: wraps and keeps line breaks. */
 </style>
 </head>
 <body class="bg-light">
 
-<!-- Navbar -->
+<!-- Navbar: same layout as the chat page, but "Review DB" is the active page. -->
 <nav class="navbar navbar-expand navbar-dark bg-primary">
     <div class="container">
         <span class="navbar-brand">🗄️ ABC123 Restaurant — Vector DB</span>
@@ -27,13 +30,15 @@
 
 <div class="container py-4">
 
-    <!-- Stats + filters -->
+    <!-- Stats + filters card -->
     <div class="card mb-3">
         <div class="card-body">
             <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
-                <h5 class="mb-0" id="totalLabel">Loading…</h5>
+                <h5 class="mb-0" id="totalLabel">Loading…</h5>  <!-- JS fills this with the review count -->
                 <span class="badge bg-primary">Qdrant · restaurant_reviews</span>
             </div>
+            <!-- Filter form: form-select = dropdown, form-control = text box.
+                 onsubmit="applyFilters()" runs when the user presses Enter or clicks Apply. -->
             <form class="row g-2 align-items-end" onsubmit="applyFilters(); return false;">
                 <div class="col-auto">
                     <label class="form-label mb-1 small text-muted" for="filterStar">Rating</label>
@@ -52,6 +57,7 @@
                 </div>
                 <div class="col-auto">
                     <label class="form-label mb-1 small text-muted" for="filterOrder">Order type</label>
+                    <!-- Filled automatically by init() with the real values found in the data -->
                     <select class="form-select form-select-sm" id="filterOrder"><option value="">All</option></select>
                 </div>
                 <div class="col-auto">
@@ -66,10 +72,12 @@
         </div>
     </div>
 
-    <!-- Reviews table -->
+    <!-- Reviews table card -->
     <div class="card mb-3">
         <div class="card-header fw-semibold">Reviews in the Vector Database</div>
         <div class="card-body">
+            <!-- table-striped = zebra stripes, table-hover = highlight on hover,
+                 align-middle = centre rows vertically. -->
             <div class="table-responsive">
                 <table class="table table-striped table-hover align-middle">
                     <thead>
@@ -83,6 +91,7 @@
                     </tbody>
                 </table>
             </div>
+            <!-- Pagination: Prev / page info / Next -->
             <div class="d-flex justify-content-between align-items-center">
                 <button class="btn btn-outline-secondary btn-sm" id="prevBtn" onclick="changePage(-1)">← Prev</button>
                 <span class="text-muted small" id="pageInfo">Page 1</span>
@@ -91,10 +100,11 @@
         </div>
     </div>
 
-    <!-- Semantic search -->
+    <!-- Semantic search card -->
     <div class="card mb-3">
         <div class="card-header fw-semibold">🔍 Semantic Search (vector similarity)</div>
         <div class="card-body">
+            <!-- input-group = input + select + button in one row -->
             <div class="input-group mb-3">
                 <input type="text" class="form-control" id="searchQuery" placeholder="e.g., best kolo mee, great service for families…">
                 <select class="form-select" id="searchK" style="max-width: 110px;">
@@ -113,7 +123,8 @@
     <footer class="text-center text-muted mt-4 small">Restaurant RAG Workshop | LangChain · Ollama · Qdrant</footer>
 </div>
 
-<!-- Floating menu button: dropup dropdown, pure Bootstrap (no custom CSS) -->
+<!-- Floating menu button (FAB): same dropup dropdown as the chat page,
+     opens upward and navigates between the two pages (no custom JS needed). -->
 <div class="dropup position-fixed bottom-0 end-0 m-4">
     <button class="btn btn-primary rounded-circle shadow" type="button" data-bs-toggle="dropdown" aria-expanded="false"
             aria-label="Open menu" style="width: 56px; height: 56px; font-size: 1.4rem; line-height: 1;">☰</button>
@@ -123,13 +134,18 @@
     </ul>
 </div>
 
+<!-- Bootstrap's JavaScript: needed for the dropdown to work -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    const LIMIT = 20;
+    const LIMIT = 20;  // how many reviews per page
+    // state holds everything the table depends on:
+    //   offset = which page (row number to start from), plus the active filters.
     let state = { offset: 0, star: '', dish: '', order: '', q: '' };
-    let currentTotal = 0;
+    let currentTotal = 0;  // how many reviews matched the filters in total
 
-    // --- helpers ---
+    // --- helpers -------------------------------------------------------------------
+
+    // Build an HTML string of 5 stars. Unfilled stars get a grey <span class="empty">.
     function starsHtml(rating) {
         const r = rating || 0;
         let s = '';
@@ -137,12 +153,16 @@
         return '<span class="stars">' + s + '</span>';
     }
 
+    // Escape a value so it is safe to put inside HTML (prevents XSS attacks).
+    // If a review text contained HTML tags (like a script tag), it is shown as
+    // plain text instead of being executed by the browser.
     function esc(v) {
         const d = document.createElement('div');
         d.textContent = v == null ? '' : String(v);
         return d.innerHTML;
     }
 
+    // Build the /api/reviews URL with the current filters + page offset.
     function buildQuery() {
         const p = new URLSearchParams({ limit: LIMIT, offset: state.offset });
         if (state.star) p.set('star_rating', state.star);
@@ -152,19 +172,21 @@
         return '/api/reviews?' + p.toString();
     }
 
-    // --- load reviews (table) ---
+    // --- load the reviews (fills the table) ----------------------------------------
     async function loadReviews() {
         const tbody = document.getElementById('tableBody');
         try {
-            const res = await fetch(buildQuery());
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Failed to load reviews');
+            const response = await fetch(buildQuery());  // call the backend
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Failed to load reviews');
             currentTotal = data.total;
             document.getElementById('totalLabel').textContent = data.total + ' review' + (data.total === 1 ? '' : 's') + ' in Qdrant';
 
             if (!data.points.length) {
+                // No results: show a friendly "empty" row spanning all 7 columns.
                 tbody.innerHTML = '<tr><td colspan="7" class="text-muted fst-italic text-center py-3">No reviews match the current filters.</td></tr>';
             } else {
+                // map() turns each review into one <tr>…</tr> row, join('') glues them together.
                 tbody.innerHTML = data.points.map(p =>
                     '<tr>' +
                         '<td>' + esc(p.reviewer_name) + '</td>' +
@@ -177,35 +199,39 @@
                     '</tr>'
                 ).join('');
             }
-            // pagination info
-            const page = Math.floor(state.offset / LIMIT) + 1;
+            // --- pagination info ---
+            const page = Math.floor(state.offset / LIMIT) + 1;  // offset 0 -> page 1, offset 20 -> page 2…
             const pages = Math.max(1, Math.ceil(currentTotal / LIMIT));
             document.getElementById('pageInfo').textContent = 'Page ' + page + ' of ' + pages +
                 ' (' + currentTotal + ' results)';
-            document.getElementById('prevBtn').disabled = state.offset <= 0;
-            document.getElementById('nextBtn').disabled = state.offset + LIMIT >= currentTotal;
+            document.getElementById('prevBtn').disabled = state.offset <= 0;                        // no "previous" on page 1
+            document.getElementById('nextBtn').disabled = state.offset + LIMIT >= currentTotal;     // no "next" on the last page
         } catch (err) {
+            // Show the error message in red inside the table.
             tbody.innerHTML = '<tr><td colspan="7" class="text-danger text-center py-3">⚠️ ' + esc(err.message) + '</td></tr>';
             document.getElementById('totalLabel').textContent = 'Unavailable';
         }
     }
 
+    // Move to the previous/next page: delta = -1 or +1.
     function changePage(delta) {
         const next = state.offset + delta * LIMIT;
-        if (next < 0 || next >= currentTotal) return;
+        if (next < 0 || next >= currentTotal) return;  // do nothing at the ends
         state.offset = next;
         loadReviews();
     }
 
+    // Read the filter inputs into state and reload from page 1.
     function applyFilters() {
         state.star = document.getElementById('filterStar').value;
         state.dish = document.getElementById('filterDish').value.trim();
         state.order = document.getElementById('filterOrder').value;
         state.q = document.getElementById('filterQ').value.trim();
-        state.offset = 0;
+        state.offset = 0;  // a new search always starts at page 1
         loadReviews();
     }
 
+    // Clear every filter input and go back to the full list.
     function resetFilters() {
         document.getElementById('filterStar').value = '';
         document.getElementById('filterDish').value = '';
@@ -215,7 +241,7 @@
         loadReviews();
     }
 
-    // --- semantic search ---
+    // --- semantic (vector) search ---------------------------------------------------
     async function runSearch() {
         const q = document.getElementById('searchQuery').value.trim();
         const k = parseInt(document.getElementById('searchK').value, 10);
@@ -223,20 +249,21 @@
         if (!q) { box.innerHTML = '<div class="text-muted fst-italic text-center py-2">Enter a query to search.</div>'; return; }
         box.innerHTML = '<div class="text-muted fst-italic text-center py-2">Searching…</div>';
         try {
-            const res = await fetch('/api/search', {
+            const response = await fetch('/api/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query: q, k: k }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Search failed');
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Search failed');
             if (!data.results.length) {
                 box.innerHTML = '<div class="text-muted fst-italic text-center py-2">No matches found.</div>';
                 return;
             }
+            // Render each match as a list-group item with a blue score badge.
             box.innerHTML = '<ul class="list-group">' + data.results.map(r => {
                 const m = r.metadata || {};
-                const pct = Math.round((r.score || 0) * 100);
+                const pct = Math.round((r.score || 0) * 100);  // score 0..1 -> percent 0..100
                 return '<li class="list-group-item">' +
                     '<div class="text-primary small mb-1">' + esc(m.reviewer_name) +
                     ' · ' + starsHtml(m.star_rating) +
@@ -251,12 +278,14 @@
         }
     }
 
-    // --- init: build order-type dropdown from actual data, then load first page ---
+    // --- init: runs once when the page loads -----------------------------------------
     async function init() {
         try {
-            const res = await fetch('/api/reviews?limit=100&offset=0');
-            const data = await res.json();
-            if (res.ok) {
+            // Fill the Order-type dropdown with the UNIQUE values that actually exist
+            // in the data (instead of hard-coding them).
+            const response = await fetch('/api/reviews?limit=100&offset=0');
+            const data = await response.json();
+            if (response.ok) {
                 const types = [...new Set(data.points.map(p => p.order_type).filter(Boolean))].sort();
                 const sel = document.getElementById('filterOrder');
                 types.forEach(t => {
@@ -265,10 +294,12 @@
                     sel.appendChild(opt);
                 });
             }
-        } catch (e) { /* dropdown stays with just "All" if backend is down */ }
-        loadReviews();
+        } catch (e) { /* dropdown stays with just "All" if the backend is down */ }
+        loadReviews();  // finally, show page 1 of the reviews
     }
 
+    // --- event listeners --------------------------------------------------------------
+    // Press Enter in the search box / filter text box to trigger the action.
     document.getElementById('searchQuery').addEventListener('keypress', e => { if (e.key === 'Enter') runSearch(); });
     document.getElementById('filterQ').addEventListener('keypress', e => { if (e.key === 'Enter') applyFilters(); });
     init();
