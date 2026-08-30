@@ -1,0 +1,17 @@
+# Python bytecode cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+
+# IDE / editor workspace files
+.trae/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
