@@ -11,10 +11,11 @@ the data using LangChain + Ollama.
 | `embedding.py` | Reads the review Excel, embeds each review with Ollama, and upserts vectors + metadata into Qdrant |
 | `chat.py` | Restaurant-only Q&A chatbot that retrieves relevant reviews from Qdrant and answers with a LangChain LLM chain |
 | `ABC123_Restaurant_Kuching_Google_Reviews_100_Rows.xlsx` | Source data (100 review rows, 9 columns) |
-| `Step_1_docker_installation_run_guideline.txt` | Docker installation guide |
-| `Step_2_qdrant_installation_run_guideline.txt` | Qdrant installation & run guide |
-| `Step_3_embedding_run_guideline.txt` | Embedding run guide |
-| `Step_4_chat_run_guideline.txt` | Chat run guide |
+| `Guideline/Step_1_docker_installation_run_guideline.md` | Docker installation guide |
+| `Guideline/Step_2_qdrant_installation_run_guideline.md` | Qdrant installation & run guide |
+| `Guideline/Step_3_embedding_run_guideline.md` | Embedding run guide |
+| `Guideline/Step_4_chat_run_guideline.md` | Chat run guide |
+| `Guideline/Step_5_web_ui_run_guideline.md` | Web UI run guide |
 
 ## Tech Stack
 
@@ -26,8 +27,8 @@ the data using LangChain + Ollama.
 
 Prerequisites: Docker installed and running, Ollama installed.
 
-1. **Docker** — follow `Step_1_docker_installation_run_guideline.txt`.
-2. **Qdrant** — follow `Step_2_qdrant_installation_run_guideline.txt` to start Qdrant on port 6333.
+1. **Docker** — follow `Guideline/Step_1_docker_installation_run_guideline.md`.
+2. **Qdrant** — follow `Guideline/Step_2_qdrant_installation_run_guideline.md` to start Qdrant on port 6333.
 3. **Pull the Ollama models:**
    ```powershell
    ollama pull qwen3-embedding:0.6b
