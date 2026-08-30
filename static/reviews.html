@@ -17,17 +17,6 @@
 </head>
 <body class="bg-light">
 
-<!-- Navbar: same layout as the chat page, but "Review DB" is the active page. -->
-<nav class="navbar navbar-expand navbar-dark bg-primary">
-    <div class="container">
-        <span class="navbar-brand">🗄️ ABC123 Restaurant — Vector DB</span>
-        <ul class="navbar-nav">
-            <li class="nav-item"><a class="nav-link" href="/">💬 Chat</a></li>
-            <li class="nav-item"><a class="nav-link active" href="/reviews">🗄️ Review DB</a></li>
-        </ul>
-    </div>
-</nav>
-
 <div class="container py-4">
 
     <!-- Stats + filters card -->
@@ -123,16 +112,22 @@
     <footer class="text-center text-muted mt-4 small">Restaurant RAG Workshop | LangChain · Ollama · Qdrant</footer>
 </div>
 
-<!-- Floating menu button (FAB): same dropup dropdown as the chat page,
-     opens upward and navigates between the two pages (no custom JS needed). -->
-<div class="dropup position-fixed bottom-0 end-0 m-4">
-    <button class="btn btn-primary rounded-circle shadow" type="button" data-bs-toggle="dropdown" aria-expanded="false"
-            aria-label="Open menu" style="width: 56px; height: 56px; font-size: 1.4rem; line-height: 1;">☰</button>
-    <ul class="dropdown-menu dropdown-menu-end shadow">
-        <li><a class="dropdown-item" href="/">💬 Chat</a></li>
-        <li><a class="dropdown-item active" href="/reviews">🗄️ Review DB</a></li>
-    </ul>
-</div>
+<!-- Floating menu button (FAB): the markup lives in ONE shared file
+     (static/fab_menu.html). We just provide an empty container and fetch it,
+     so every page shows the same menu without duplicating HTML.
+     data-active tells the loader which menu item to highlight on this page. -->
+<div id="fabContainer" data-active="reviews"></div>
+<script>
+    fetch('/static/fab_menu.html')
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById('fabContainer').innerHTML = html;
+            // Highlight this page's item (data-active = "reviews" here).
+            const page = document.getElementById('fabContainer').dataset.active;
+            const link = document.querySelector('#fabContainer a[data-page="' + page + '"]');
+            if (link) link.classList.add('active');
+        });
+</script>
 
 <!-- Bootstrap's JavaScript: needed for the dropdown to work -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

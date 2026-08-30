@@ -51,18 +51,22 @@ Ask me anything about the restaurant's food, service, prices, or customer experi
     </div>
 </div>
 
-<!-- Floating menu button (FAB):
-     dropup = menu opens UPWARD, position-fixed = stays on screen while scrolling,
-     bottom-0 end-0 = bottom-right corner, m-4 = margin, rounded-circle = round button.
-     data-bs-toggle="dropdown" tells Bootstrap to open the menu on click — no custom JS needed. -->
-<div class="dropup position-fixed bottom-0 end-0 m-4">
-    <button class="btn btn-primary rounded-circle shadow" type="button" data-bs-toggle="dropdown" aria-expanded="false"
-            aria-label="Open menu" style="width: 56px; height: 56px; font-size: 1.4rem; line-height: 1;">☰</button>
-    <ul class="dropdown-menu dropdown-menu-end shadow">
-        <li><a class="dropdown-item active" href="/">💬 Chat</a></li>
-        <li><a class="dropdown-item" href="/reviews">🗄️ Review DB</a></li>
-    </ul>
-</div>
+<!-- Floating menu button (FAB): the markup lives in ONE shared file
+     (static/fab_menu.html). We just provide an empty container and fetch it,
+     so every page shows the same menu without duplicating HTML.
+     data-active tells the loader which menu item to highlight on this page. -->
+<div id="fabContainer" data-active="chat"></div>
+<script>
+    fetch('/static/fab_menu.html')
+        .then(r => r.text())
+        .then(html => {
+            document.getElementById('fabContainer').innerHTML = html;
+            // Highlight this page's item (data-active = "chat" here).
+            const page = document.getElementById('fabContainer').dataset.active;
+            const link = document.querySelector('#fabContainer a[data-page="' + page + '"]');
+            if (link) link.classList.add('active');
+        });
+</script>
 
 <!-- Bootstrap's JavaScript: needed for the dropdown to work -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

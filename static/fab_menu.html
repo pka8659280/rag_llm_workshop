@@ -1,0 +1,11 @@
+<!-- Shared floating menu button (FAB) — single source of truth for page navigation.
+     Loaded by chat.html and reviews.html (they fetch this file and inject it).
+     "active" styling is applied by the loading page via the data-page attribute. -->
+<div class="dropup position-fixed bottom-0 end-0 m-4">
+    <button class="btn btn-primary rounded-circle shadow" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+            aria-label="Open menu" style="width: 56px; height: 56px; font-size: 1.4rem; line-height: 1;">☰</button>
+    <ul class="dropdown-menu dropdown-menu-end shadow">
+        <li><a class="dropdown-item" href="/" data-page="chat">💬 Chat</a></li>
+        <li><a class="dropdown-item" href="/reviews" data-page="reviews">🗄️ Review DB</a></li>
+    </ul>
+</div>
