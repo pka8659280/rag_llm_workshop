@@ -3,7 +3,7 @@
 ## What It Does
 
 - Reads the 100 Google review rows from:
-  - `ABC123_Restaurant_Kuching_Google_Reviews_100_Rows.xlsx`
+  - `spreadsheet_data/ABC123_Restaurant_Kuching_Google_Reviews_100_Rows.xlsx`
 - Embeds each review's text using Ollama (`qwen3-embedding:0.6b`).
 - Upserts vectors + metadata into the Qdrant collection `restaurant_reviews`.
 

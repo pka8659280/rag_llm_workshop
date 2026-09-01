@@ -28,3 +28,9 @@ def chat_page():
 def reviews_page():
     """Send the review-browser HTML page to the browser."""
     return FileResponse(BASE_DIR / "static" / "reviews.html")
+
+
+@router.get("/convert")
+def convert_page():
+    """Send the spreadsheet -> vector DB convert HTML page to the browser."""
+    return FileResponse(BASE_DIR / "static" / "convert.html")

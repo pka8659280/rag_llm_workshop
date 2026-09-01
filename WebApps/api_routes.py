@@ -6,6 +6,9 @@ The JavaScript on the HTML pages calls these:
   GET  /api/reviews ?limit&offset&star_rating&dish_mentioned
                     &order_type&q                            -> {"total", "points"}
   POST /api/search  {"query": str, "k": int}                 -> {"query", "results": [...]}
+  GET  /api/spreadsheets                                     -> {"files": [filename, ...]}
+  POST /api/convert  {"file": str | omitted}                 -> {"file", "converted", "points"}
+  POST /api/data/clear (no body)                             -> {"removed", "points"}
 
 The RAG objects (Qdrant store + LLM) live on app.state, created once in web_app.py's
 startup; the endpoints read them via `request.app.state` so the routers stay stateless.
@@ -13,6 +16,7 @@ startup; the endpoints read them via `request.app.state` so the routers stay sta
 Imported by web_app.py (which owns the FastAPI app + startup logic).
 """
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -20,9 +24,16 @@ from pydantic import BaseModel, Field
 # Reuses the LangChain vector store + LLM from chat.py (single source of truth),
 # so the chatbot logic is not duplicated here.
 from chat import COLLECTION_NAME, TOP_K, answer
+# Reuses the Excel -> Qdrant ingestion function (single source of truth), so the
+# web page can trigger the same conversion as python embedding.py.
+from converter import convert_excel_to_qdrant
 
 logger = logging.getLogger("api_routes")
 router = APIRouter()
+
+# Absolute path to the folder that holds the spreadsheets (project root / spreadsheet_data),
+# so it works no matter which directory uvicorn was started from.
+SPREADSHEET_DIR = Path(__file__).resolve().parent.parent / "spreadsheet_data"
 
 
 # --- Request models -------------------------------------------------------------
@@ -39,6 +50,16 @@ class SearchRequest(BaseModel):
 
     query: str = Field(..., min_length=1)  # required, must not be empty
     k: int = Field(default=TOP_K, ge=1, le=10)  # 1..10 hits, defaults to TOP_K
+
+
+class ConvertRequest(BaseModel):
+    """Body for POST /api/convert: which spreadsheet file to ingest (optional).
+
+    If `file` is omitted, the first spreadsheet found in spreadsheet_data/ is used,
+    which keeps the old "empty body" behaviour working.
+    """
+
+    file: str | None = None  # filename, e.g. "ABC123_..._100_Rows.xlsx"
 
 
 # --- Chat -----------------------------------------------------------------------
@@ -149,3 +170,67 @@ def api_search(req: SearchRequest, request: Request):
     except Exception as e:
         logger.error("Search error: %s", e)
         raise HTTPException(500, f"Similarity search failed: {e}") from e
+
+
+# --- Convert (ingest a spreadsheet into the vector DB) ----------------------------
+# The browser dropdown lists the files via /api/spreadsheets and sends the selected
+# filename to /api/convert. No dependency on app.state either — convert_excel_to_qdrant()
+# builds its own vector store, and because it upserts the same deterministic UUID5 ids,
+# the existing store on app.state keeps pointing at valid (updated) data.
+@router.get("/api/spreadsheets")
+def api_spreadsheets():
+    """List the spreadsheet files (.xlsx/.xls/.xlsm) in the spreadsheet_data/ folder."""
+    if not SPREADSHEET_DIR.is_dir():
+        return {"files": []}
+    files = sorted(
+        p.name for p in SPREADSHEET_DIR.iterdir()
+        if p.is_file() and p.suffix.lower() in (".xlsx", ".xls", ".xlsm")
+    )
+    return {"files": files}
+
+
+@router.post("/api/convert")
+def api_convert(req: ConvertRequest):
+    """Re-ingest a spreadsheet from spreadsheet_data/ into 'restaurant_reviews' (idempotent)."""
+    # Path(file).name strips any directory part, so a value like "..\\..\\evil.xlsx"
+    # can never escape the spreadsheet_data/ folder (path-traversal guard).
+    if req.file:
+        name = Path(req.file).name
+        path = SPREADSHEET_DIR / name
+        if not path.is_file():
+            raise HTTPException(400, f"File '{name}' not found in spreadsheet_data/.")
+    else:
+        files = api_spreadsheets()["files"]
+        if not files:
+            raise HTTPException(400, "No spreadsheet found in spreadsheet_data/.")
+        name = files[0]  # no file chosen -> convert the first spreadsheet (alphabetical)
+        path = SPREADSHEET_DIR / name
+    try:
+        summary = convert_excel_to_qdrant(excel_file=str(path))
+        return {"file": name, **summary}
+    except Exception as e:
+        logger.error("Convert error: %s", e)
+        raise HTTPException(500, f"Conversion failed: {e}") from e
+
+
+# --- Data removal (delete points from the vector DB) -------------------------------
+# Points are keyed by deterministic UUID5 ids, so removing them and re-ingesting the
+# same spreadsheet re-creates them at the same ids (idempotent, no duplicates).
+@router.post("/api/data/clear")
+def api_clear_data(request: Request):
+    """Delete ALL points from 'restaurant_reviews' (full reset of the vector data)."""
+    if request.app.state.store is None:
+        raise HTTPException(
+            500,
+            "RAG backend not initialized. Check that Qdrant (port 6333) and Ollama are running.",
+        )
+    try:
+        ids = [p.id for p in _all_points(request)]
+        if ids:
+            request.app.state.store.client.delete(
+                collection_name=COLLECTION_NAME, points_selector=ids
+            )
+        return {"removed": len(ids), "points": 0}
+    except Exception as e:
+        logger.error("Clear error: %s", e)
+        raise HTTPException(500, f"Failed to clear data: {e}") from e
