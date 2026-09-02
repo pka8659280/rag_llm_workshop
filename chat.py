@@ -14,6 +14,7 @@ Usage:
     python chat.py                        # interactive REPL (type questions, Enter to ask)
     python chat.py "question..."          # one-shot: answer a single question, then exit
 """
+import os
 import sys
 
 from langchain_core.output_parsers import StrOutputParser  # takes the LLM's output and gives you plain text
@@ -22,7 +23,13 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings  # ChatOllama = chat L
 from langchain_qdrant import QdrantVectorStore  # reads the existing Qdrant collection
 
 # --- Config ------------------------------------------------------------------
-QDRANT_URL = "http://localhost:6333"
+# Inside Docker (docker-compose.yml) these are overridden with the compose
+# service names so the app can reach its neighbours over the compose network:
+#   QDRANT_URL=http://qdrant:6333
+#   OLLAMA_BASE_URL=http://ollama:11434
+# When running locally (no Docker) they fall back to localhost, so nothing breaks.
+QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 COLLECTION_NAME = "restaurant_reviews"
 EMBED_MODEL = "qwen3-embedding:0.6b"
 CHAT_MODEL = "qwen3.5:9b"
@@ -75,7 +82,8 @@ def build():
         # IMPORTANT: this embedding model MUST match the one used in embedding.py.
         # Similarity only makes sense if the question and the reviews were embedded
         # with the same model (same "language" of numbers).
-        embeddings = OllamaEmbeddings(model=EMBED_MODEL)
+        # base_url points at the Ollama server; in Docker it is the service name.
+        embeddings = OllamaEmbeddings(model=EMBED_MODEL, base_url=OLLAMA_BASE_URL)
         # The collection was already created by embedding.py, so we just open it.
         store = QdrantVectorStore.from_existing_collection(
             collection_name=COLLECTION_NAME,
@@ -85,7 +93,13 @@ def build():
         # ChatOllama = the actual "brain". temperature=0.2 keeps answers fairly
         # focused; num_predict=512 caps the answer length; reasoning=False skips
         # the thinking step so answers come back faster.
-        llm = ChatOllama(model=CHAT_MODEL, temperature=0.2, num_predict=512, reasoning=False)
+        llm = ChatOllama(
+            model=CHAT_MODEL,
+            base_url=OLLAMA_BASE_URL,
+            temperature=0.2,
+            num_predict=512,
+            reasoning=False,
+        )
         return store, llm
     except Exception as e:
         # Fail fast with a helpful message instead of crashing later on.

@@ -1,0 +1,106 @@
+# =============================================================================
+# docker-compose for the ABC123 Restaurant RAG web app.
+#
+# Runs the FULL stack on any Docker device with:  docker compose up -d
+#   1. qdrant   - vector database (holds the embedded reviews)
+#   2. ollama   - local LLM server (qwen3.5:9b chat + qwen3-embedding:0.6b)
+#   3. webapp   - the FastAPI UI (built from the local Dockerfile)
+#   4. seed     - one-shot auto-seed: waits for the qwen models, then embeds the
+#                 Excel reviews into Qdrant (runs once and exits)
+#
+# Containers reach each other by SERVICE NAME over the compose network
+# (http://qdrant:6333, http://ollama:11434) - that is why chat.py and
+# converter.py read QDRANT_URL / OLLAMA_BASE_URL from environment variables.
+# =============================================================================
+
+services:
+  # --- Vector database -------------------------------------------------------
+  qdrant:
+    image: qdrant/qdrant
+    container_name: rag-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"        # REST API (also the dashboard at /dashboard)
+    volumes:
+      - qdrant_data:/qdrant/storage   # persist vectors across restarts
+
+  # --- LLM + embedding server ------------------------------------------------
+  ollama:
+    image: ollama/ollama
+    container_name: rag-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"      # Ollama API
+    volumes:
+      - ollama_data:/root/.ollama     # persist models (downloaded once only)
+    # --- Optional NVIDIA GPU acceleration --------------------------------------
+    # If the target device has an NVIDIA GPU (with nvidia-container-toolkit
+    # installed), REMOVE the leading "# " from the 6 lines below so Ollama uses
+    # the GPU. Otherwise leave them commented: Ollama runs on the CPU - it works,
+    # but the 9B chat model answers more slowly.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Start the Ollama server in the background.
+        ollama serve &
+        # Wait until the server answers before pulling models (first run only;
+        # on later starts the models are already cached in the ollama_data volume).
+        until ollama list >/dev/null 2>&1; do sleep 2; done
+        echo "Pulling qwen3-embedding:0.6b ..."
+        ollama pull qwen3-embedding:0.6b
+        echo "Pulling qwen3.5:9b (~5 GB, first run only - be patient) ..."
+        ollama pull qwen3.5:9b
+        echo "All models ready."
+        # Keep PID 1 attached to the server process so `docker stop` works cleanly.
+        wait
+
+  # --- FastAPI web app (chat UI + reviews browser + convert page) -------------
+  webapp:
+    # Deterministic image name: compose builds it from the Dockerfile and tags it
+    # exactly as "abc123-rag-webapp", so "docker save abc123-rag-webapp" works no
+    # matter what the project folder is called on the source machine.
+    image: abc123-rag-webapp
+    build: .                          # builds from the Dockerfile in this folder
+    container_name: rag-webapp
+    restart: unless-stopped
+    ports:
+      - "8000:8000"                   # http://localhost:8000
+    depends_on:
+      - qdrant
+      - ollama
+    environment:
+      # Service names, NOT localhost: these resolve inside the compose network.
+      QDRANT_URL: http://qdrant:6333
+      OLLAMA_BASE_URL: http://ollama:11434
+    # No bind mounts: the spreadsheet lives INSIDE the image (COPY . .), so the
+    # image is fully self-contained and works on any device that can run it.
+
+  # --- One-shot auto-seed -----------------------------------------------------
+  # Reuses the SAME image as webapp (no second build). It waits until the qwen
+  # models are pulled, checks whether the reviews are already in Qdrant, and only
+  # then embeds the Excel data. restart: "no" -> it runs once and exits; if it
+  # fails the container stops and you can retry with:  docker compose up seed
+  seed:
+    image: abc123-rag-webapp
+    container_name: rag-seed
+    restart: "no"
+    depends_on:
+      qdrant:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      OLLAMA_BASE_URL: http://ollama:11434
+    command: ["python", "deploy_seed.py"]
+
+volumes:
+  qdrant_data:      # persists the embedded review vectors
+  ollama_data:      # persists the pulled qwen models

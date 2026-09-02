@@ -4,6 +4,26 @@ A local RAG (Retrieval-Augmented Generation) pipeline that embeds 100 Google rev
 of ABC123 Restaurant (Kuching) into a Qdrant vector database, then lets you chat with
 the data using LangChain + Ollama.
 
+## Run with Docker
+
+Docker is the only way you need to run the app — Qdrant and Ollama are started
+automatically, so nothing else needs to be installed on the target device.
+
+Copy this whole project folder to the device that has Docker, then run:
+
+1. **Build the Docker image** (first run only — or whenever you change the code):
+   ```powershell
+   docker compose build
+   ```
+
+2. **Run everything** — starts Qdrant + Ollama + the web app, downloads the qwen
+   models on the very first run (~5.5 GB), and auto-embeds the 100 reviews:
+   ```powershell
+   docker compose up -d
+   ```
+
+Then open http://localhost:8000/ to chat.
+
 ## Project Structure
 
 | File | Purpose |
@@ -16,6 +36,9 @@ the data using LangChain + Ollama.
 | `WebApps/api_routes.py` | JSON endpoints: `/api/chat`, `/api/reviews`, `/api/search`, `/api/spreadsheets`, `/api/convert`, `/api/data/clear` |
 | `WebApps/static/*.html` | Browser pages + shared FAB navigation menu |
 | `spreadsheet_data/ABC123_Restaurant_Kuching_Google_Reviews_100_Rows.xlsx` | Source data (100 review rows, 9 columns); all spreadsheets live in `spreadsheet_data/` |
+| `Dockerfile` | Builds the `abc123-rag-webapp` image (Python 3.11 + pinned requirements + the app) |
+| `docker-compose.yml` | Orchestrates the full stack: qdrant + ollama + webapp + the one-shot `seed` service |
+| `deploy_seed.py` | Auto-seed runner used by the `seed` service: waits for the qwen models, then embeds the reviews |
 | `Guideline/Step_1_docker_installation_run_guideline.md` | Docker installation guide |
 | `Guideline/Step_2_qdrant_installation_run_guideline.md` | Qdrant installation & run guide |
 | `Guideline/Step_3_embedding_run_guideline.md` | Embedding run guide |
@@ -27,43 +50,6 @@ the data using LangChain + Ollama.
 - **Qdrant** — vector database (http://localhost:6333)
 - **Ollama** — local models: `qwen3-embedding:0.6b` (embeddings, 1024-dim) and `qwen3.5:9b` (chat)
 - **LangChain** — `langchain-ollama`, `langchain-qdrant`, `langchain-core`
-
-## Quick Start
-
-Prerequisites: Docker installed and running, Ollama installed.
-
-1. **Docker** — follow `Guideline/Step_1_docker_installation_run_guideline.md`.
-2. **Qdrant** — follow `Guideline/Step_2_qdrant_installation_run_guideline.md` to start Qdrant on port 6333.
-3. **Pull the Ollama models:**
-   ```powershell
-   ollama pull qwen3-embedding:0.6b
-   ollama pull qwen3.5:9b
-   ```
-4. **Install Python packages:**
-   ```powershell
-   pip install openpyxl langchain-ollama langchain-qdrant fastapi uvicorn
-   ```
-5. **Embed the reviews** (creates the `restaurant_reviews` collection; reads the
-   spreadsheet from the `spreadsheet_data/` folder):
-   ```powershell
-   python embedding.py
-   ```
-   Expected output: `Embedded 100 reviews into 'restaurant_reviews' (100 points in Qdrant).`
-6. **Chat with the data (CLI):**
-   ```powershell
-   python chat.py                        # interactive REPL
-   python chat.py "What do customers say about the kolo mee?"   # one question
-   ```
-7. **Start the web app** (chat UI + reviews browser + Convert page):
-   ```powershell
-   uvicorn WebApps.web_app:app --port 8000
-   ```
-8. **Open the pages in a browser:**
-   - **Chat** — http://localhost:8000/
-   - **Reviews** — http://localhost:8000/reviews
-   - **Convert** — http://localhost:8000/convert (pick a spreadsheet from the dropdown, then the button re-ingests it into Qdrant, no need to run `embedding.py`)
-
-   The three pages share a floating action button (⚙️) to navigate between them.
 
 ## Usage Notes
 

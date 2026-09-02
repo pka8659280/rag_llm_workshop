@@ -1,0 +1,37 @@
+# Files/folders NOT copied into the Docker image (keeps the image small).
+# NOTE: spreadsheet_data/ is intentionally NOT excluded — the Excel data must
+# ship inside the image so it is fully self-contained on the target device.
+
+# Version control
+.git
+.gitignore
+
+# Documentation & design assets (not needed at runtime)
+Guideline/
+images/
+README.md
+*.md
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE / plan files
+.trae/
+
+# Docker files themselves (only the context of the web app is needed)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

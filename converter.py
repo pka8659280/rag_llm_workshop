@@ -16,6 +16,7 @@ The function mirrors what embedding.py used to do as a top-level script:
 Idempotent: deterministic UUID5 ids mean re-running updates the same points
 instead of creating duplicates — safe to call from the web page repeatedly.
 """
+import os
 import threading
 import uuid
 from pathlib import Path
@@ -26,12 +27,16 @@ from langchain_ollama import OllamaEmbeddings  # turns text into vectors (runs l
 from langchain_qdrant import QdrantVectorStore  # talks to Qdrant (our vector database)
 
 # --- Config ------------------------------------------------------------------
+# Inside Docker (docker-compose.yml) these are overridden with the compose
+# service names (QDRANT_URL=http://qdrant:6333, OLLAMA_BASE_URL=http://ollama:11434);
+# running locally they fall back to localhost so nothing breaks.
+QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 EXCEL_FILE = "ABC123_Restaurant_Kuching_Google_Reviews_100_Rows.xlsx"
 # All spreadsheet files live in the spreadsheet_data/ folder next to this file,
 # so the path works no matter which directory the script is started from.
 SPREADSHEET_DIR = Path(__file__).resolve().parent / "spreadsheet_data"
 DEFAULT_EXCEL_PATH = SPREADSHEET_DIR / EXCEL_FILE  # default file to convert
-QDRANT_URL = "http://localhost:6333"
 COLLECTION_NAME = "restaurant_reviews"
 EMBED_MODEL = "qwen3-embedding:0.6b"
 
@@ -101,9 +106,10 @@ def convert_excel_to_qdrant(
         #   1. embeds every page_content with the Ollama embedding model,
         #   2. auto-creates the collection (vector size is inferred from the model, 1024),
         #   3. upserts all documents (with their metadata) into Qdrant.
+        # base_url points at the Ollama server; in Docker it is the service name.
         store = QdrantVectorStore.from_documents(
             documents,
-            embedding=OllamaEmbeddings(model=embed_model),
+            embedding=OllamaEmbeddings(model=embed_model, base_url=OLLAMA_BASE_URL),
             url=qdrant_url,
             collection_name=collection_name,
             ids=ids,
