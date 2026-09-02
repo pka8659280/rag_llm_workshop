@@ -107,12 +107,18 @@ def convert_excel_to_qdrant(
         #   2. auto-creates the collection (vector size is inferred from the model, 1024),
         #   3. upserts all documents (with their metadata) into Qdrant.
         # base_url points at the Ollama server; in Docker it is the service name.
+        #
+        # timeout=120: qdrant_client's HTTP client defaults to a 5 s timeout. On a cold
+        # Docker volume the very first create_collection can take longer (observed 5.7 s),
+        # which made the one-shot seed service crash with httpx.ReadTimeout. A generous
+        # explicit timeout keeps first-time seeding reliable.
         store = QdrantVectorStore.from_documents(
             documents,
             embedding=OllamaEmbeddings(model=embed_model, base_url=OLLAMA_BASE_URL),
             url=qdrant_url,
             collection_name=collection_name,
             ids=ids,
+            timeout=120,
         )
 
         # Sanity check: how many points does Qdrant actually hold now?

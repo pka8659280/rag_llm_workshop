@@ -22,7 +22,43 @@ Copy this whole project folder to the device that has Docker, then run:
    docker compose up -d
    ```
 
+   **Watching the first-run model download (~5.5 GB):** the download runs in a dedicated
+   one-shot `models` service (container `rag-models`), so its progress is easy to see:
+   - **Recommended on the very first run:** use `docker compose up` (no `-d`) so the
+     download progress prints live in the terminal. After it finishes, press `Ctrl+C` and
+     use `docker compose up -d` on later runs.
+   - Or keep `docker compose up -d` and open a second terminal with
+     `docker compose logs -f models` to watch the download.
+   - While the download runs, `docker compose up` shows `rag-seed Waiting` — that is
+     normal: seeding (auto-embedding) only starts after the models finish.
+
 Then open http://localhost:8000/ to chat.
+
+If a step fails (build error, container won't start, etc.), don't retry on a
+half-created stack — stop and remove everything first, then run the steps again:
+
+```powershell
+docker compose down -v
+docker rmi -f abc123-rag-webapp qdrant/qdrant ollama/ollama
+```
+
+## Remove Everything (Full Cleanup)
+
+To stop the app and delete everything Docker created — containers, the compose
+network, the stored reviews, the downloaded qwen models (~5.5 GB), and the images:
+
+```powershell
+docker compose down -v
+docker rmi abc123-rag-webapp qdrant/qdrant ollama/ollama
+```
+
+`down -v` stops and removes the containers, the compose network, and the named
+volumes (`qdrant_data` = embedded reviews, `ollama_data` = the qwen models).
+`rmi` then deletes the built `abc123-rag-webapp` image plus the Qdrant and Ollama
+base images. The project folder on disk is untouched.
+
+The next `docker compose up -d` is a full first run again: it rebuilds the image,
+re-downloads the models (~5.5 GB), and auto-embeds the 100 reviews.
 
 ## Project Structure
 
@@ -37,7 +73,7 @@ Then open http://localhost:8000/ to chat.
 | `WebApps/static/*.html` | Browser pages + shared FAB navigation menu |
 | `spreadsheet_data/ABC123_Restaurant_Kuching_Google_Reviews_100_Rows.xlsx` | Source data (100 review rows, 9 columns); all spreadsheets live in `spreadsheet_data/` |
 | `Dockerfile` | Builds the `abc123-rag-webapp` image (Python 3.11 + pinned requirements + the app) |
-| `docker-compose.yml` | Orchestrates the full stack: qdrant + ollama + webapp + the one-shot `seed` service |
+| `docker-compose.yml` | Orchestrates the full stack: qdrant + ollama + webapp + one-shot `models` (model downloader) + one-shot `seed` services |
 | `deploy_seed.py` | Auto-seed runner used by the `seed` service: waits for the qwen models, then embeds the reviews |
 | `Guideline/Step_1_docker_installation_run_guideline.md` | Docker installation guide |
 | `Guideline/Step_2_qdrant_installation_run_guideline.md` | Qdrant installation & run guide |
@@ -69,6 +105,7 @@ Then open http://localhost:8000/ to chat.
 
 - **Qdrant not reachable** (`connection refused`) — start it: `docker start qdrant`
 - **Model not found** — pull it with `ollama pull <model>`
+- **First run seems stuck (`rag-seed Waiting`)** — normal: the `models` service is downloading ~5.5 GB; watch it with `docker compose logs -f models`
 - **Collection missing** — run `python embedding.py` first
 - **Slow first chat answer** — the 9B chat model needs to load into memory; subsequent answers are faster
 - **Web app won't start with an `on_startup` error** — upgrade fastapi/starlette to their latest versions (`pip install --upgrade fastapi`); check for dependency conflicts with `pip check`

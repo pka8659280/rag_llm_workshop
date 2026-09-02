@@ -4,9 +4,13 @@
 # Runs the FULL stack on any Docker device with:  docker compose up -d
 #   1. qdrant   - vector database (holds the embedded reviews)
 #   2. ollama   - local LLM server (qwen3.5:9b chat + qwen3-embedding:0.6b)
-#   3. webapp   - the FastAPI UI (built from the local Dockerfile)
-#   4. seed     - one-shot auto-seed: waits for the qwen models, then embeds the
+#   3. models   - one-shot model downloader: pulls the qwen models on the FIRST
+#                 run only (~5.5 GB), then exits. Its log stream is pure download
+#                 progress: run `docker compose up` (foreground) to see it live, or
+#                 `docker compose up -d` then `docker compose logs -f models`.
+#   4. seed     - one-shot auto-seed: waits for the models service, then embeds the
 #                 Excel reviews into Qdrant (runs once and exits)
+#   5. webapp   - the FastAPI UI (built from the local Dockerfile)
 #
 # Containers reach each other by SERVICE NAME over the compose network
 # (http://qdrant:6333, http://ollama:11434) - that is why chat.py and
@@ -48,18 +52,12 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        # Start the Ollama server in the background.
-        ollama serve &
-        # Wait until the server answers before pulling models (first run only;
-        # on later starts the models are already cached in the ollama_data volume).
-        until ollama list >/dev/null 2>&1; do sleep 2; done
-        echo "Pulling qwen3-embedding:0.6b ..."
-        ollama pull qwen3-embedding:0.6b
-        echo "Pulling qwen3.5:9b (~5 GB, first run only - be patient) ..."
-        ollama pull qwen3.5:9b
-        echo "All models ready."
-        # Keep PID 1 attached to the server process so `docker stop` works cleanly.
-        wait
+        # Serve only. Model downloads run in the one-shot "models" service below so
+        # their progress is visible in the compose log stream instead of being buried
+        # in this container's logs. `exec` keeps PID 1 = ollama so `docker stop` works
+        # cleanly; on later starts the models are already cached in the ollama_data
+        # volume, so the "models" service below exits in seconds.
+        exec ollama serve
 
   # --- FastAPI web app (chat UI + reviews browser + convert page) -------------
   webapp:
@@ -73,8 +71,16 @@ services:
     ports:
       - "8000:8000"                   # http://localhost:8000
     depends_on:
-      - qdrant
-      - ollama
+      qdrant:
+        condition: service_started
+      ollama:
+        condition: service_started
+      # Order matters on a FRESH deploy: build() (startup) opens the EXISTING
+      # "restaurant_reviews" collection, so the web app must not start until the
+      # one-shot seed service has created it. Without this, the first `up -d`
+      # shows "RAG backend not initialized" until the webapp is restarted.
+      seed:
+        condition: service_completed_successfully
     environment:
       # Service names, NOT localhost: these resolve inside the compose network.
       QDRANT_URL: http://qdrant:6333
@@ -84,9 +90,10 @@ services:
 
   # --- One-shot auto-seed -----------------------------------------------------
   # Reuses the SAME image as webapp (no second build). It waits until the qwen
-  # models are pulled, checks whether the reviews are already in Qdrant, and only
-  # then embeds the Excel data. restart: "no" -> it runs once and exits; if it
-  # fails the container stops and you can retry with:  docker compose up seed
+  # models are pulled (the "models" service below), checks whether the reviews are
+  # already in Qdrant, and only then embeds the Excel data. restart: "no" -> it
+  # runs once and exits; if it fails the container stops and you can retry with:
+  # docker compose up seed
   seed:
     image: abc123-rag-webapp
     container_name: rag-seed
@@ -94,12 +101,42 @@ services:
     depends_on:
       qdrant:
         condition: service_started
-      ollama:
-        condition: service_started
+      # Models must be downloaded first - this is what the old inline `ollama pull`
+      # used to guarantee implicitly. deploy_seed.py keeps its own wait as a safety net.
+      models:
+        condition: service_completed_successfully
     environment:
       QDRANT_URL: http://qdrant:6333
       OLLAMA_BASE_URL: http://ollama:11434
     command: ["python", "deploy_seed.py"]
+
+  # --- One-shot model downloader ---------------------------------------------
+  # Downloads the two qwen models ONCE (first run, ~5.5 GB) before seed/webapp start.
+  # It talks to the serving ollama container (OLLAMA_HOST) - the server does the
+  # downloading into the shared ollama_data volume, so the models persist. Its log
+  # stream is pure download progress:
+  #   - `docker compose up`        -> progress prints live in the terminal
+  #   - `docker compose up -d`     -> follow it with `docker compose logs -f models`
+  models:
+    image: ollama/ollama
+    container_name: rag-models
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_started
+    environment:
+      # Point the CLI at the compose ollama server (not this container's localhost).
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Wait until the Ollama server answers (it only just started).
+        until ollama list >/dev/null 2>&1; do sleep 2; done
+        echo "Pulling qwen3-embedding:0.6b ..."
+        ollama pull qwen3-embedding:0.6b
+        echo "Pulling qwen3.5:9b (~5 GB, first run only - be patient) ..."
+        ollama pull qwen3.5:9b
+        echo "All models ready."
 
 volumes:
   qdrant_data:      # persists the embedded review vectors
