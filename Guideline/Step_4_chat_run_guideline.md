@@ -30,7 +30,8 @@ pip install openpyxl langchain-ollama langchain-qdrant
 - Open PowerShell, go to the project folder, and run:
 
 ```powershell
-cd C:\Users\User\VisualStudioCodeWorkspace\rag_llm_workshop
+# Navigate to the folder where you cloned this repo first
+cd <your-project-folder>
 python chat.py "What do customers say about the kolo mee?"
 ```
 

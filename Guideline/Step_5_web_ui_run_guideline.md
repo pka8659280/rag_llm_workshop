@@ -29,7 +29,8 @@ pip install fastapi uvicorn openpyxl langchain-ollama langchain-qdrant
 - Open PowerShell, go to the project folder, and run:
 
 ```powershell
-cd C:\Users\User\VisualStudioCodeWorkspace\rag_llm_workshop
+# Navigate to the folder where you cloned this repo first
+cd <your-project-folder>
 uvicorn WebApps.web_app:app --port 8000
 ```
 

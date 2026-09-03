@@ -4,6 +4,11 @@ A local RAG (Retrieval-Augmented Generation) pipeline that embeds 100 Google rev
 of ABC123 Restaurant (Kuching) into a Qdrant vector database, then lets you chat with
 the data using LangChain + Ollama.
 
+> **Education Purpose** — This project was built as a hands-on learning example of a
+> local RAG pipeline. The review data in `spreadsheet_data/` is **synthetic/AI-generated
+> demo data**, not real Google reviews; any resemblance to real people or businesses is
+> coincidental.
+
 ## Run with Docker
 
 Docker is the only way you need to run the app — Qdrant and Ollama are started
@@ -110,3 +115,7 @@ re-downloads the models (~5.5 GB), and auto-embeds the 100 reviews.
 - **Slow first chat answer** — the 9B chat model needs to load into memory; subsequent answers are faster
 - **Web app won't start with an `on_startup` error** — upgrade fastapi/starlette to their latest versions (`pip install --upgrade fastapi`); check for dependency conflicts with `pip check`
 - **Port 8000 already in use** — pick another port: `uvicorn WebApps.web_app:app --port 8001`
+
+## License
+
+MIT — see [LICENSE](LICENSE).

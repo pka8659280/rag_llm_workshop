@@ -17,7 +17,8 @@ docker pull qdrant/qdrant
 - Create a local folder to persist Qdrant data:
 
 ```powershell
-mkdir C:\qdrant_storage
+# Use any folder you like, e.g. C:\qdrant_storage
+mkdir <your-qdrant-folder>
 ```
 
 ## 3. Run the Qdrant Container
@@ -25,7 +26,7 @@ mkdir C:\qdrant_storage
 - Run Qdrant as a background container with persistent storage:
 
 ```powershell
-docker run -d -p 6333:6333 -p 6334:6334 --name qdrant -v C:\qdrant_storage:/qdrant/storage qdrant/qdrant
+docker run -d -p 6333:6333 -p 6334:6334 --name qdrant -v <your-qdrant-folder>:/qdrant/storage qdrant/qdrant
 ```
 
 - **Ports:**
